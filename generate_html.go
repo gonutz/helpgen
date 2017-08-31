@@ -13,7 +13,7 @@ func genHTML(doc document) ([]byte, error) {
 		buf.WriteString(s)
 	}
 
-	write(`<!DOCTYPE html><html>`)
+	write(`<!DOCTYPE html><meta charset="UTF-8"><html>`)
 	if doc.title != "" {
 		write(`<head><title>` + html.EscapeString(doc.title) + `</title></head>`)
 	}

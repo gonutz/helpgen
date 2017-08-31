@@ -45,6 +45,10 @@ func genHTML(doc document) ([]byte, error) {
 			write("<" + tag + ">")
 			write(p.text)
 			write("</" + tag + ">")
+		case docLink:
+			write(fmt.Sprintf(`<a href="#%s">%s</a>`, p.id, html.EscapeString(p.text)))
+		case docLinkTarget:
+			write(fmt.Sprintf(`<a id="%s"/>`, p.id))
 		default:
 			return nil, fmt.Errorf("error generating HTML: unhandled document part: %#v", p)
 		}

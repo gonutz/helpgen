@@ -12,19 +12,33 @@ import (
 func parse(code []byte) (document, error) {
 	var p parser
 	p.vars = make(map[string]string)
+	p.links = make(map[string]bool)
+	p.linkTargets = make(map[string]bool)
 	p.code = code
 	p.parse()
+	p.checkLinks()
 	return p.doc, p.err
 }
 
 type parser struct {
-	code      []byte
-	text      string
-	cur       int
-	col, line int
-	doc       document
-	err       error
-	vars      map[string]string
+	code        []byte
+	text        string
+	cur         int
+	col, line   int
+	doc         document
+	err         error
+	vars        map[string]string
+	links       map[string]bool
+	linkTargets map[string]bool
+}
+
+func (p *parser) checkLinks() {
+	for id, _ := range p.links {
+		if !p.linkTargets[id] {
+			p.err = fmt.Errorf("undefined link target: '%s'", id)
+			return
+		}
+	}
 }
 
 func (p *parser) parse() {
@@ -112,6 +126,17 @@ func (p *parser) parseCommand() {
 					p.errorf("undefined variable '%s': ", name)
 					return
 				}
+			case cmdLink:
+				id := strings.TrimSpace(params[1])
+				p.emit(docLink{
+					text: params[0],
+					id:   id,
+				})
+				p.links[id] = true
+			case cmdLinkTarget:
+				id := strings.TrimSpace(params[0])
+				p.emit(docLinkTarget{id: id})
+				p.linkTargets[id] = true
 			default:
 				p.errorf("unhandled command: '%s'", commands[i].text)
 			}
@@ -191,6 +216,8 @@ const (
 	cmdImage
 	cmdSet
 	cmdVar
+	cmdLink
+	cmdLinkTarget
 )
 
 type command struct {
@@ -215,6 +242,8 @@ var commands = []command{
 	cmd(cmdImage, "image", 1),
 	cmd(cmdSet, "set", 2),
 	cmd(cmdVar, "var", 1),
+	cmd(cmdLink, "link", 2),
+	cmd(cmdLinkTarget, "target", 1),
 }
 
 func init() {

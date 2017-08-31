@@ -82,6 +82,17 @@ type largerDocText struct {
 	scale int
 }
 
+type docLink struct {
+	id   string
+	text string
+}
+
+type docLinkTarget struct {
+	id string
+}
+
 func (docText) isDocPart()       {}
 func (docImage) isDocPart()      {}
 func (largerDocText) isDocPart() {}
+func (docLink) isDocPart()       {}
+func (docLinkTarget) isDocPart() {}

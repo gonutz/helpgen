@@ -46,7 +46,7 @@ func genHTML(doc document) ([]byte, error) {
 			write(p.text)
 			write("</" + tag + ">")
 		default:
-			return nil, fmt.Errorf("unhandled document part: %#v", p)
+			return nil, fmt.Errorf("error generating HTML: unhandled document part: %#v", p)
 		}
 	}
 	write(`</body></html>`)

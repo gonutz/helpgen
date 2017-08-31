@@ -11,6 +11,7 @@ import (
 
 func parse(code []byte) (document, error) {
 	var p parser
+	p.vars = make(map[string]string)
 	p.code = code
 	p.parse()
 	return p.doc, p.err
@@ -23,6 +24,7 @@ type parser struct {
 	col, line int
 	doc       document
 	err       error
+	vars      map[string]string
 }
 
 func (p *parser) parse() {
@@ -32,8 +34,13 @@ func (p *parser) parse() {
 			p.finishText()
 			return
 		} else if r == '\\' {
-			p.finishText()
-			p.parseCommand()
+			if p.peek() == '\\' {
+				p.next()
+				p.text += "\\"
+			} else {
+				p.finishText()
+				p.parseCommand()
+			}
 		} else if r == '\r' {
 			// skip carriage returns
 		} else {
@@ -70,29 +77,69 @@ func (p *parser) parseCommand() {
 				p.errorf("')' expected after %s command parameter", commands[i].text)
 				return
 			}
-			param := string(p.code[start : p.cur-1])
-			if commands[i].trimWhiteSpace {
-				param = strings.TrimSpace(param)
+			allParams := string(p.code[start : p.cur-1])
+			params := strings.Split(allParams, ",")
+			if len(params) != commands[i].paramCount {
+				p.errorf(
+					"wrong number of arguments for '%s' command, expected %d but have %d",
+					commands[i].text,
+					commands[i].paramCount,
+					len(params),
+				)
+				return
 			}
 
 			switch commands[i].id {
 			case cmdTitle:
-				p.doc.title = param
+				p.doc.title = strings.TrimSpace(params[0])
 				p.eatWhiteSpace()
 			case cmdImage:
-				p.emit(docImage{name: param})
+				p.emit(docImage{name: strings.TrimSpace(params[0])})
 			case cmdMagnify2:
-				p.emit(largerDocText{text: param, scale: 2})
+				p.emit(largerDocText{text: params[0], scale: 2})
 			case cmdMagnify3:
-				p.emit(largerDocText{text: param, scale: 3})
+				p.emit(largerDocText{text: params[0], scale: 3})
 			case cmdMagnify4:
-				p.emit(largerDocText{text: param, scale: 4})
+				p.emit(largerDocText{text: params[0], scale: 4})
+			case cmdSet:
+				p.vars[strings.TrimSpace(params[0])] = params[1]
+				p.eatWhiteSpace()
+			case cmdVar:
+				name := strings.TrimSpace(params[0])
+				if value, ok := p.vars[name]; ok {
+					p.text += value
+				} else {
+					p.errorf("undefined variable '%s': ", name)
+					return
+				}
 			default:
 				p.errorf("unhandled command: '%s'", commands[i].text)
 			}
-			break
+			return
 		}
 	}
+	// If we came here, no known command was found. For a helpful error message,
+	// name the command in the error message. NOTE that basically anything can
+	// come after the \ so try to find the first non-character to mark the
+	// supposed command's end
+	cmd := ""
+	rest := p.code[p.cur:]
+	i := 0
+	for i < len(rest) {
+		r, size := utf8.DecodeRune(rest)
+		rest = rest[size:]
+		if !unicode.IsLetter(r) {
+			break
+		}
+		if len(cmd) >= 30 {
+			// do not show the whole rest of the code if no non-character is
+			// found, clamp here
+			cmd += "..."
+			break
+		}
+		cmd += string(r)
+	}
+	p.errorf("unknown command: '%s'", cmd)
 }
 
 const eof rune = 0
@@ -126,7 +173,7 @@ func (p *parser) next() rune {
 }
 
 func (p *parser) error(msg string) {
-	p.err = fmt.Errorf("line %d col %d: %s", p.line+1, p.col+1, msg)
+	p.err = fmt.Errorf("parse error in line %d col %d: %s", p.line+1, p.col+1, msg)
 }
 
 func (p *parser) errorf(format string, a ...interface{}) {
@@ -142,28 +189,32 @@ const (
 	cmdMagnify3
 	cmdMagnify4
 	cmdImage
+	cmdSet
+	cmdVar
 )
 
 type command struct {
-	id             commandID
-	text           []byte
-	trimWhiteSpace bool
+	id         commandID
+	text       []byte
+	paramCount int
 }
 
-func cmd(id commandID, text string, trimWS bool) command {
+func cmd(id commandID, text string, params int) command {
 	return command{
-		id:             id,
-		text:           []byte(text),
-		trimWhiteSpace: trimWS,
+		id:         id,
+		text:       []byte(text),
+		paramCount: params,
 	}
 }
 
 var commands = []command{
-	cmd(cmdTitle, "title", true),
-	cmd(cmdMagnify2, "2x", false),
-	cmd(cmdMagnify3, "3x", false),
-	cmd(cmdMagnify4, "4x", false),
-	cmd(cmdImage, "image", true),
+	cmd(cmdTitle, "title", 1),
+	cmd(cmdMagnify2, "2x", 1),
+	cmd(cmdMagnify3, "3x", 1),
+	cmd(cmdMagnify4, "4x", 1),
+	cmd(cmdImage, "image", 1),
+	cmd(cmdSet, "set", 2),
+	cmd(cmdVar, "var", 1),
 }
 
 func init() {

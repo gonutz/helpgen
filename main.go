@@ -9,11 +9,6 @@ import (
 func main() {
 	var code []byte
 
-	// TODO remove this debug code
-	if len(os.Args) == 1 {
-		os.Args = append(os.Args, `example/slofec_viewer.help`)
-	}
-
 	if len(os.Args) == 1 {
 		// read input from std in
 		var err error
@@ -41,15 +36,6 @@ func main() {
 		fmt.Printf("error parsing code: %s\n", err.Error())
 		os.Exit(2)
 	}
-
-	// TODO remove this debug code
-	//doc = document{
-	//	title: "SLOFEC Viewer",
-	//	parts: []docPart{
-	//		docText("Hello World!\nLine 2\n"),
-	//		docImage{name: "setup 1 language"},
-	//	},
-	//}
 
 	html, err := genHTML(doc)
 	if err != nil {

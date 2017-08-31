@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-func genHTML(doc document) (string, error) {
+func genHTML(doc document) ([]byte, error) {
 	var buf bytes.Buffer
 	write := func(s string) {
 		buf.WriteString(s)
@@ -29,11 +29,11 @@ func genHTML(doc document) (string, error) {
 		case docImage:
 			img, err := findImage(p.name)
 			if err != nil {
-				return "", fmt.Errorf("error generating HTML image '%s': %s", p.name, err.Error())
+				return nil, fmt.Errorf("error generating HTML image '%s': %s", p.name, err.Error())
 			}
 			tag, err := imageTag(img)
 			if err != nil {
-				return "", fmt.Errorf("error generating HTML image tag for '%s': %s", p.name, err.Error())
+				return nil, fmt.Errorf("error generating HTML image tag for '%s': %s", p.name, err.Error())
 			}
 			write(tag)
 		case largerDocText:
@@ -46,10 +46,10 @@ func genHTML(doc document) (string, error) {
 			write(p.text)
 			write("</" + tag + ">")
 		default:
-			return "", fmt.Errorf("unhandled document part: %#v", p)
+			return nil, fmt.Errorf("unhandled document part: %#v", p)
 		}
 	}
 	write(`</body></html>`)
 
-	return string(buf.Bytes()), nil
+	return buf.Bytes(), nil
 }

@@ -7,9 +7,28 @@ import (
 )
 
 func main() {
-	var code []byte
+	var (
+		code      []byte
+		generator = genHTML
+	)
 
-	if len(os.Args) == 1 {
+	args := os.Args[1:]
+	delArg := func(i int) {
+		args = append(args[:i], args[i+1:]...)
+	}
+	i := 0
+	for i < len(args) {
+		if args[i] == "-html" {
+			generator = genHTML
+			delArg(i)
+		} else if args[i] == "-rtf" {
+			generator = genRTF
+			delArg(i)
+		}
+		i++
+	}
+
+	if len(args) == 0 {
 		// read input from std in
 		var err error
 		code, err = ioutil.ReadAll(os.Stdin)
@@ -17,9 +36,9 @@ func main() {
 			fmt.Printf("error reading input from STDIN: %s\n", err.Error())
 			os.Exit(1)
 		}
-	} else if len(os.Args) == 2 {
+	} else if len(args) == 1 {
 		// read input from file
-		path := os.Args[1]
+		path := args[0]
 		var err error
 		code, err = ioutil.ReadFile(path)
 		if err != nil {
@@ -37,12 +56,12 @@ func main() {
 		os.Exit(2)
 	}
 
-	html, err := genHTML(doc)
+	output, err := generator(doc)
 	if err != nil {
-		fmt.Printf("error generating HTML: %s\n", err.Error())
+		fmt.Printf("error generating output: %s\n", err.Error())
 		os.Exit(3)
 	}
-	fmt.Println(html)
+	fmt.Println(string(output))
 }
 
 type document struct {

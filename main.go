@@ -21,10 +21,8 @@ func main() {
 		if args[i] == "-html" {
 			generator = genHTML
 			delArg(i)
-		} else if args[i] == "-rtf" {
-			generator = genRTF
-			delArg(i)
 		}
+		// NOTE other generators can go here
 		i++
 	}
 

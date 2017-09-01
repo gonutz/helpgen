@@ -2,8 +2,12 @@ package main
 
 import (
 	"bytes"
+	"encoding/base64"
+	"errors"
 	"fmt"
 	"html"
+	"image"
+	"image/png"
 	"strings"
 )
 
@@ -13,11 +17,18 @@ func genHTML(doc document) ([]byte, error) {
 		buf.WriteString(s)
 	}
 
-	write(`<!DOCTYPE html><meta charset="UTF-8"><html>`)
+	write(`<!DOCTYPE html><meta charset="UTF-8"><html><head>
+<style>body{
+background-color: #D7EEEF;
+text-align: center;
+max-width:800px;
+margin: 0 auto !important;
+float: none !important;
+}</style>`)
 	if doc.title != "" {
-		write(`<head><title>` + html.EscapeString(doc.title) + `</title></head>`)
+		write(`<title>` + html.EscapeString(doc.title) + `</title>`)
 	}
-	write(`<body>`)
+	write(`</head><body>`)
 	for _, part := range doc.parts {
 		switch p := part.(type) {
 		case docText:
@@ -56,4 +67,18 @@ func genHTML(doc document) ([]byte, error) {
 	write(`</body></html>`)
 
 	return buf.Bytes(), nil
+}
+
+func imageTag(img image.Image) (string, error) {
+	var buf bytes.Buffer
+	e := base64.NewEncoder(base64.StdEncoding, &buf)
+	err := png.Encode(e, img)
+	if err != nil {
+		return "", errors.New("cannot encode image as PNG: " + err.Error())
+	}
+	err = e.Close()
+	if err != nil {
+		return "", errors.New("cannot encode image as Base64: " + err.Error())
+	}
+	return `<img src="data:image/png;base64,` + string(buf.Bytes()) + `">`, nil
 }

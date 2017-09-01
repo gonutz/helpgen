@@ -1,12 +1,9 @@
 package main
 
 import (
-	"bytes"
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"image"
-	"image/png"
 	"os"
 	"path/filepath"
 	"strings"
@@ -14,6 +11,7 @@ import (
 	_ "golang.org/x/image/bmp"
 	_ "image/gif"
 	_ "image/jpeg"
+	_ "image/png"
 )
 
 var imageCache = make(map[string]image.Image)
@@ -51,18 +49,4 @@ func loadImage(path string) (image.Image, error) {
 	defer f.Close()
 	img, _, err := image.Decode(f)
 	return img, err
-}
-
-func imageTag(img image.Image) (string, error) {
-	var buf bytes.Buffer
-	e := base64.NewEncoder(base64.StdEncoding, &buf)
-	err := png.Encode(e, img)
-	if err != nil {
-		return "", errors.New("cannot encode image as PNG: " + err.Error())
-	}
-	err = e.Close()
-	if err != nil {
-		return "", errors.New("cannot encode image as Base64: " + err.Error())
-	}
-	return `<img src="data:image/png;base64,` + string(buf.Bytes()) + `">`, nil
 }

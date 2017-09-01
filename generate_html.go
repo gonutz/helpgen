@@ -18,13 +18,15 @@ func genHTML(doc document) ([]byte, error) {
 	}
 
 	write(`<!DOCTYPE html><meta charset="UTF-8"><html><head>
-<style>body{
-background-color: #D7EEEF;
-text-align: center;
-max-width:800px;
-margin: 0 auto !important;
-float: none !important;
-}</style>`)
+<style>
+ body{
+  background-color: #D7EEEF;
+  text-align: left;
+  max-width:800px;
+  margin-left: auto;
+  margin-right: auto;
+ }
+</style>`)
 	if doc.title != "" {
 		write(`<title>` + html.EscapeString(doc.title) + `</title>`)
 	}
@@ -60,8 +62,12 @@ float: none !important;
 			write(fmt.Sprintf(`<a href="#%s">%s</a>`, p.id, html.EscapeString(p.text)))
 		case docLinkTarget:
 			write(fmt.Sprintf(`<a id="%s"/>`, p.id))
+		case boldDocText:
+			write(fmt.Sprintf(`<b>%s</b>`, html.EscapeString(string(p))))
+		case italicDocText:
+			write(fmt.Sprintf(`<i>%s</i>`, html.EscapeString(string(p))))
 		default:
-			return nil, fmt.Errorf("error generating HTML: unhandled document part: %#v", p)
+			return nil, fmt.Errorf("error generating HTML: unhandled document part: %T", p)
 		}
 	}
 	write(`</body></html>`)

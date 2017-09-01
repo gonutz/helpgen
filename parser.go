@@ -16,7 +16,9 @@ func parse(code []byte) (document, error) {
 	p.linkTargets = make(map[string]bool)
 	p.code = code
 	p.parse()
-	p.checkLinks()
+	if p.err == nil {
+		p.checkLinks()
+	}
 	return p.doc, p.err
 }
 
@@ -137,6 +139,10 @@ func (p *parser) parseCommand() {
 				id := strings.TrimSpace(params[0])
 				p.emit(docLinkTarget{id: id})
 				p.linkTargets[id] = true
+			case cmdBold:
+				p.emit(boldDocText(params[0]))
+			case cmdItalic:
+				p.emit(italicDocText(params[0]))
 			default:
 				p.errorf("unhandled command: '%s'", commands[i].text)
 			}
@@ -164,7 +170,11 @@ func (p *parser) parseCommand() {
 		}
 		cmd += string(r)
 	}
-	p.errorf("unknown command: '%s'", cmd)
+	if cmd == "" {
+		p.errorf(`missing command after \ character, type \\ for a literal \`)
+	} else {
+		p.errorf("unknown command: '%s'", cmd)
+	}
 }
 
 const eof rune = 0
@@ -218,6 +228,8 @@ const (
 	cmdVar
 	cmdLink
 	cmdLinkTarget
+	cmdBold
+	cmdItalic
 )
 
 type command struct {
@@ -244,12 +256,14 @@ var commands = []command{
 	cmd(cmdVar, "var", 1),
 	cmd(cmdLink, "link", 2),
 	cmd(cmdLinkTarget, "target", 1),
+	cmd(cmdBold, "b", 1),
+	cmd(cmdItalic, "i", 1),
 }
 
 func init() {
 	// make sure the longest text item comes first, this way matching commands
-	// during parsing will match the right one even if two commands share a
-	// common prefix (e.g. "image" and "image_crop")
+	// during parsing will match the right one even if (e.g. "image" and
+	// "image_crop")
 	sort.Sort(longestTextFirst(commands))
 }
 

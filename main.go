@@ -31,8 +31,7 @@ func main() {
 		var err error
 		code, err = ioutil.ReadAll(os.Stdin)
 		if err != nil {
-			fmt.Printf("error reading input from STDIN: %s\n", err.Error())
-			os.Exit(1)
+			fail(1, "error reading input from STDIN: %s\n", err.Error())
 		}
 	} else if len(args) == 1 {
 		// read input from file
@@ -40,26 +39,28 @@ func main() {
 		var err error
 		code, err = ioutil.ReadFile(path)
 		if err != nil {
-			fmt.Printf("unable to read file '%s': %s\n", path, err.Error())
-			os.Exit(1)
+			fail(1, "unable to read file '%s': %s\n", path, err.Error())
 		}
 	} else {
-		fmt.Println("too many parameters")
-		os.Exit(1)
+		fail(1, "too many parameters")
 	}
 
 	doc, err := parse(code)
 	if err != nil {
-		fmt.Printf("error parsing code: %s\n", err.Error())
-		os.Exit(2)
+		fail(2, "error parsing code: %s\n", err.Error())
 	}
 
 	output, err := generator(doc)
 	if err != nil {
-		fmt.Printf("error generating output: %s\n", err.Error())
-		os.Exit(3)
+		fail(3, "error generating output: %s\n", err.Error())
 	}
-	fmt.Println(string(output))
+
+	fmt.Print(string(output))
+}
+
+func fail(exitCode int, format string, a ...interface{}) {
+	fmt.Fprintf(os.Stderr, format, a...)
+	os.Exit(exitCode)
 }
 
 type document struct {
@@ -72,6 +73,8 @@ type docPart interface {
 }
 
 type docText string
+type boldDocText string
+type italicDocText string
 
 type docImage struct {
 	name string
@@ -92,6 +95,8 @@ type docLinkTarget struct {
 }
 
 func (docText) isDocPart()       {}
+func (boldDocText) isDocPart()   {}
+func (italicDocText) isDocPart() {}
 func (docImage) isDocPart()      {}
 func (largerDocText) isDocPart() {}
 func (docLink) isDocPart()       {}

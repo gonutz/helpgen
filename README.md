@@ -32,7 +32,7 @@ To make text bold, put it in `*` characters like so
 
 `*bold*`
 
-For italic, use '/'
+For italic, use `/`
 
 `/italic/`
 
@@ -44,7 +44,7 @@ or
 
 `/*bold and italic*/`
 
-Stylized text can only span a single line so if you want a whole paragraph to appear bold, enclose all lines in '*' characters.
+Stylized text can only span a single line so if you want a whole paragraph to appear bold, enclose all lines in `*` characters.
 
 ## Images
 

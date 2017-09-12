@@ -28,7 +28,7 @@ The most basic syntax element is simple text. All non-special syntax text will a
 
 ## Font Styles
 
-To make text bold, put it in '*' characters like so
+To make text bold, put it in `*` characters like so
 
 `*bold*`
 

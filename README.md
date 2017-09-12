@@ -1,4 +1,4 @@
-# help
+# helpgen
 
 Create HTML and RTF help files using a simple, text-based markup language.
 

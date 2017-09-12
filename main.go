@@ -6,6 +6,11 @@ import (
 	"os"
 )
 
+var generators = map[string]func(document) ([]byte, error){
+	"-html": genHTML,
+	"-rtf":  genRTF,
+}
+
 func main() {
 	var (
 		code      []byte
@@ -18,11 +23,12 @@ func main() {
 	}
 	i := 0
 	for i < len(args) {
-		if args[i] == "-html" {
-			generator = genHTML
-			delArg(i)
+		for flag, gen := range generators {
+			if args[i] == flag {
+				generator = gen
+				delArg(i)
+			}
 		}
-		// NOTE other generators can go here
 		i++
 	}
 
@@ -62,42 +68,3 @@ func fail(exitCode int, format string, a ...interface{}) {
 	fmt.Fprintf(os.Stderr, format, a...)
 	os.Exit(exitCode)
 }
-
-type document struct {
-	title string
-	parts []docPart
-}
-
-type docPart interface {
-	isDocPart()
-}
-
-type docText string
-type boldDocText string
-type italicDocText string
-
-type docImage struct {
-	name string
-}
-
-type largerDocText struct {
-	text  string
-	scale int
-}
-
-type docLink struct {
-	id   string
-	text string
-}
-
-type docLinkTarget struct {
-	id string
-}
-
-func (docText) isDocPart()       {}
-func (boldDocText) isDocPart()   {}
-func (italicDocText) isDocPart() {}
-func (docImage) isDocPart()      {}
-func (largerDocText) isDocPart() {}
-func (docLink) isDocPart()       {}
-func (docLinkTarget) isDocPart() {}

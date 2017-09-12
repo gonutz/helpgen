@@ -49,23 +49,32 @@ func genHTML(doc document) ([]byte, error) {
 				return nil, fmt.Errorf("error generating HTML image tag for '%s': %s", p.name, err.Error())
 			}
 			write(tag)
-		case largerDocText:
-			// map scale heading
-			//       2     3
-			//       3     2
-			//       4     1
-			tag := fmt.Sprintf("h%d", 5-p.scale)
-			write("<" + tag + ">")
-			write(p.text)
-			write("</" + tag + ">")
+		case docTitle:
+			write("<h1>" + string(p) + "</h1>")
+		case docCaption:
+			write("<h2>" + string(p) + "</h2>")
+		case docSubCaption:
+			write("<h3>" + string(p) + "</h3>")
+		case docSubSubCaption:
+			write("<h4>" + string(p) + "</h4>")
 		case docLink:
-			write(fmt.Sprintf(`<a href="#%s">%s</a>`, p.id, html.EscapeString(p.text)))
+			write(fmt.Sprintf(`<a href="#%d">%s</a>`, p.id, html.EscapeString(p.text)))
 		case docLinkTarget:
-			write(fmt.Sprintf(`<a id="%s"/>`, p.id))
-		case boldDocText:
-			write(fmt.Sprintf(`<b>%s</b>`, html.EscapeString(string(p))))
-		case italicDocText:
-			write(fmt.Sprintf(`<i>%s</i>`, html.EscapeString(string(p))))
+			write(fmt.Sprintf(`<a id="%d"/>`, int(p)))
+		case stylizedDocText:
+			if p.bold {
+				write("<b>")
+			}
+			if p.italic {
+				write("<i>")
+			}
+			write(html.EscapeString(p.text))
+			if p.italic {
+				write("</i>")
+			}
+			if p.bold {
+				write("</b>")
+			}
 		default:
 			return nil, fmt.Errorf("error generating HTML: unhandled document part: %T", p)
 		}

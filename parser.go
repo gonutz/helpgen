@@ -3,272 +3,451 @@ package main
 import (
 	"bytes"
 	"fmt"
-	"sort"
 	"strings"
 	"unicode"
-	"unicode/utf8"
 )
 
 func parse(code []byte) (document, error) {
 	var p parser
-	p.vars = make(map[string]string)
-	p.links = make(map[string]bool)
-	p.linkTargets = make(map[string]bool)
 	p.code = code
 	p.parse()
 	if p.err == nil {
-		p.checkLinks()
+		p.resolveRefs()
 	}
 	return p.doc, p.err
 }
 
 type parser struct {
-	code        []byte
-	text        string
-	cur         int
-	col, line   int
-	doc         document
-	err         error
-	vars        map[string]string
-	links       map[string]bool
-	linkTargets map[string]bool
+	doc  document
+	err  error
+	code []byte
+	vars varTable
 }
 
-func (p *parser) checkLinks() {
-	for id, _ := range p.links {
-		if !p.linkTargets[id] {
-			p.err = fmt.Errorf("undefined link target: '%s'", id)
-			return
-		}
-	}
+type varTable map[string]variable
+
+type variable struct {
+	text           string
+	declLineNumber int // 1-indexed
 }
+
+type codeLine struct {
+	text   []byte
+	kind   lineKind
+	number int // 1-indexed
+}
+
+type lineKind int
+
+const (
+	textLine lineKind = iota
+	equalsLine
+	minusLine
+	dottedLine
+)
 
 func (p *parser) parse() {
-	for p.err == nil {
-		r := p.next()
-		if r == eof {
-			p.finishText()
-			return
-		} else if r == '\\' {
-			if p.peek() == '\\' {
-				p.next()
-				p.text += "\\"
-			} else {
-				p.finishText()
-				p.parseCommand()
-			}
-		} else if r == '\r' {
-			// skip carriage returns
-		} else {
-			p.text += string(r)
-		}
+	p.code = unifyLineBreaks(p.code)
+	lines := extractCodeLines(p.code)
+	lines, p.vars, p.err = extractVariableDefinitions(lines)
+	if p.err != nil {
+		return
 	}
+	p.parseLines(lines)
+	if p.err != nil {
+		return
+	}
+	simplifyDoc(&p.doc)
 }
 
 func (p *parser) emit(part docPart) {
 	p.doc.parts = append(p.doc.parts, part)
 }
 
-func (p *parser) finishText() {
-	if len(p.text) > 0 {
-		p.emit(docText(p.text))
-		p.text = ""
+// unifyLineBreaks replaces all \r\n and \r with \n
+func unifyLineBreaks(code []byte) []byte {
+	code = bytes.Replace(code, []byte("\r\n"), []byte("\n"), -1)
+	code = bytes.Replace(code, []byte("\r"), []byte("\n"), -1)
+	return code
+}
+
+// extractCodeLines breaks the code up into lines and categorizes them
+func extractCodeLines(code []byte) []codeLine {
+	lineTexts := bytes.Split(code, []byte("\n"))
+	lines := make([]codeLine, len(lineTexts))
+	for i := range lines {
+		lines[i].text = lineTexts[i]
+		lines[i].kind = computeLineKind(lineTexts[i])
+		lines[i].number = i + 1
+	}
+	return lines
+}
+
+func computeLineKind(line []byte) lineKind {
+	if len(line) >= 3 {
+		allSame := true
+		for i := 1; i < len(line); i++ {
+			if line[i] != line[i-1] {
+				allSame = false
+				break
+			}
+		}
+		if allSame {
+			switch line[0] {
+			case '=':
+				return equalsLine
+			case '-':
+				return minusLine
+			case '.':
+				return dottedLine
+			}
+		}
+	}
+	return textLine
+}
+
+func extractVariableDefinitions(lines []codeLine) ([]codeLine, varTable, error) {
+	vars := make(varTable)
+	varStart, varEnd := []byte(`[\`), []byte(`]`)
+	eq := []byte("=")
+	for i := 0; i < len(lines); i++ {
+		line := lines[i].text
+		if bytes.HasPrefix(line, varStart) && bytes.HasSuffix(line, varEnd) {
+			firstEq := bytes.Index(line, eq)
+			if firstEq >= 0 {
+				name := string(line[len(varStart):firstEq])
+				if validVarName(name) {
+					// make sure each variable is only defined once
+					if v, exists := vars[name]; exists {
+						return nil, nil, fmt.Errorf(
+							"variable '%s' redefined in line %d, first definition was in line %d, each variable can only be defined once",
+							name,
+							lines[i].number,
+							v.declLineNumber,
+						)
+					}
+					text := bytes.TrimSuffix(line[firstEq+1:], varEnd)
+					v := variable{
+						declLineNumber: lines[i].number,
+						text:           string(text),
+					}
+					vars[name] = v
+					// erase this line
+					lines = append(lines[:i], lines[i+1:]...)
+					i--
+				}
+			}
+		}
+	}
+	return lines, vars, nil
+}
+
+// validVarName returns true if the name is not empty and contains only letters,
+// digits or underscores
+func validVarName(name string) bool {
+	for _, r := range name {
+		if !(r == ' ' || unicode.IsLetter(r) || unicode.IsDigit(r)) {
+			return false
+		}
+	}
+	return name != ""
+}
+
+func simplifyDoc(doc *document) {
+	// combine all neighbor pairs of docText into one
+	for i := 0; i < len(doc.parts)-1; i++ {
+		a, aIsText := doc.parts[i].(docText)
+		b, bIsText := doc.parts[i+1].(docText)
+		if aIsText && bIsText {
+			doc.parts[i] = a + b
+			doc.parts = append(doc.parts[:i+1], doc.parts[i+2:]...)
+			i--
+		}
 	}
 }
 
-func (p *parser) parseCommand() {
-	for i := range commands {
-		if bytes.HasPrefix(p.code[p.cur:], commands[i].text) {
-			p.cur += len(commands[i].text)
-			r := p.next()
-			if r != '(' {
-				p.errorf("'(' expected after %s command", commands[i].text)
+func (p *parser) parseLines(lines []codeLine) {
+	// there can only be one title, having multiple titles is an error
+	titleLine := -1
+	for i, line := range lines {
+		if line.kind == textLine {
+			empty := len(bytes.TrimSpace(line.text)) == 0
+			precededByEqualsLine := i > 0 && lines[i-1].kind == equalsLine
+			followedByEqualsLine := i+1 < len(lines) && lines[i+1].kind == equalsLine
+			followedByMinusLine := i+1 < len(lines) && lines[i+1].kind == minusLine
+			followedByDottedLine := i+1 < len(lines) && lines[i+1].kind == dottedLine
+
+			if !empty && precededByEqualsLine && followedByEqualsLine {
+				// this is the document title, there can only be one
+				if titleLine != -1 {
+					p.err = fmt.Errorf("title redefined in line %d, first definition in line %d, there can only be one title", i+1, titleLine+1)
+					return
+				}
+				titleLine = i
+				p.doc.title = p.replaceVars(string(line.text))
+				p.emit(docTitle(p.doc.title))
+			} else if !empty && followedByEqualsLine {
+				p.emit(docCaption(p.replaceVars(string(line.text))))
+			} else if !empty && followedByMinusLine {
+				p.emit(docSubCaption(p.replaceVars(string(line.text))))
+			} else if !empty && followedByDottedLine {
+				p.emit(docSubSubCaption(p.replaceVars(string(line.text))))
+			} else {
+				p.parseLine(line.text, line.number)
+				if i != len(lines)-1 {
+					p.emit(docText("\n"))
+				}
+			}
+		}
+	}
+}
+
+func (p *parser) parseLine(line []byte, lineNumber int) {
+	if len(line) == 0 {
+		return
+	}
+
+	i := 0
+	for i < len(line) {
+		switch line[i] {
+		case '*', '/':
+			delim := line[i]
+			if i == 0 || isSpace(line[i-1]) {
+				end := findStyleEnd(line[i+1:], delim)
+				if end != -1 {
+					end += i + 1 // because index was for line[i+1:]
+					if i > 0 {
+						p.emit(docText(line[:i]))
+					}
+					text := string(line[i+1 : end-1])
+					bold := delim == '*'
+					italic := delim == '/'
+					// account for both styles at once
+					if bold && strings.HasPrefix(text, "/") && strings.HasSuffix(text, "/") {
+						italic = true
+						text = text[1 : len(text)-1]
+					}
+					if italic && strings.HasPrefix(text, "*") && strings.HasSuffix(text, "*") {
+						bold = true
+						text = text[1 : len(text)-1]
+					}
+					text = p.replaceVars(text)
+					p.emit(stylizedDocText{
+						bold:   bold,
+						italic: italic,
+						text:   text,
+					})
+					i = 0
+					line = line[end:]
+					continue
+				}
+			}
+		case '[':
+			ok, ref, subRef, rest := findRefEnd(line[i+1:])
+			if ok {
+				if i > 0 {
+					p.emit(docText(line[:i]))
+				}
+
+				if subRef != "" {
+					p.emit(tempRef{
+						text:     ref,
+						target:   subRef,
+						declLine: lineNumber,
+					})
+				} else if v, ok := p.vars[ref]; ok {
+					p.emit(docText(v.text))
+				} else if len(ref) == 1 && strings.Contains("[*/=-.", ref) {
+					p.emit(docText(ref))
+				} else if hasImageExt(ref) {
+					p.emit(docImage{name: ref})
+				} else {
+					p.emit(tempRef{
+						target:   ref,
+						declLine: lineNumber,
+					})
+				}
+
+				i = 0
+				line = rest
+				continue
+			}
+		}
+		i++
+	}
+
+	if len(line) > 0 {
+		p.emit(docText(line))
+	}
+}
+
+func (p *parser) replaceVars(text string) string {
+	result := ""
+	rest := text
+	found := true
+	for found {
+		var next int
+		rest, found, next = p.replaceFirstVar(rest)
+		if !found {
+			break
+		}
+		result += rest[:next]
+		rest = rest[next:]
+	}
+	result += rest
+	return result
+}
+
+func (p *parser) replaceFirstVar(text string) (string, bool, int) {
+	for i, r := range text {
+		if r == '[' {
+			for j, s := range text[i+1:] {
+				if s == ']' {
+					name := text[i+1 : i+1+j]
+					if v, ok := p.vars[name]; ok {
+						return text[:i] + v.text + text[i+2+j:], true, i + len(v.text)
+					}
+				}
+			}
+		}
+	}
+	return text, false, 0
+}
+
+func (tempRef) isDocPart() {}
+
+func isSpace(b byte) bool {
+	return b == ' ' || b == '\t'
+}
+
+func findStyleEnd(line []byte, delim byte) int {
+	for i, b := range line {
+		if b == delim && i > 0 && !isSpace(line[i-1]) {
+			return i + 1
+		}
+	}
+	return -1
+}
+
+func findRefEnd(line []byte) (found bool, ref, subRef string, rest []byte) {
+	rest = line
+	// no spaces at ref start and no empty references
+	if len(line) == 0 || isSpace(line[0]) || line[0] == ']' {
+		return
+	}
+	if len(line) >= 2 && line[0] == '[' && line[1] == ']' {
+		// special case: "[[]" to escape s single '[' character
+		found = true
+		ref = "["
+		rest = line[2:]
+		return
+	}
+	// find the second ']', a sub-reference may be contained in this one
+	subRefStart := -1
+	for i, b := range line {
+		if b == ']' {
+			if subRefStart != -1 {
+				// a sub reference must end with "]]"
+				if i+1 < len(line) && line[i+1] == ']' {
+					found = true
+					ref = string(line[:subRefStart])
+					subRef = string(line[subRefStart+1 : i])
+					rest = line[i+2:]
+					return
+				} else {
+					return
+				}
+			}
+			found = true
+			ref = string(line[:i])
+			rest = line[i+1:]
+			return
+		}
+		if b == '[' {
+			if subRefStart != -1 {
+				// only one extra '[' allowed in ref
 				return
 			}
-			start := p.cur
-			for r != eof && r != ')' {
-				r = p.next()
-			}
-			if r == eof {
-				p.errorf("')' expected after %s command parameter", commands[i].text)
-				return
-			}
-			allParams := string(p.code[start : p.cur-1])
-			params := strings.Split(allParams, ",")
-			if len(params) != commands[i].paramCount {
-				p.errorf(
-					"wrong number of arguments for '%s' command, expected %d but have %d",
-					commands[i].text,
-					commands[i].paramCount,
-					len(params),
+			subRefStart = i
+		}
+	}
+	return
+}
+
+func hasImageExt(s string) bool {
+	for _, ext := range []string{".png", ".jpg", ".jpeg", ".bmp", ".gif"} {
+		if len(s) >= len(ext) && strings.ToLower(s[len(s)-len(ext):]) == ext {
+			return true
+		}
+	}
+	return false
+}
+
+type tempRef struct {
+	declLine int
+	target   string
+	text     string
+}
+
+func (p *parser) resolveRefs() {
+	// first find all referenced texts
+	referenced := make(map[string]bool)
+	for _, part := range p.doc.parts {
+		if ref, ok := part.(tempRef); ok {
+			referenced[ref.target] = true
+		}
+	}
+	// add link targets for all referenced texts
+	targets := make(map[string]int)
+	i := 0
+	addTarget := func(ref string) {
+		if referenced[ref] {
+			id := len(targets) + 1
+			targets[ref] = id
+			// insert this target into the document
+			p.doc.parts = append(p.doc.parts, nil)
+			copy(p.doc.parts[i+1:], p.doc.parts[i:])
+			p.doc.parts[i] = docLinkTarget(id)
+			i++
+		}
+	}
+	for i < len(p.doc.parts) {
+		part := p.doc.parts[i]
+		if title, ok := part.(docTitle); ok {
+			addTarget(string(title))
+		}
+		if caption, ok := part.(docCaption); ok {
+			addTarget(string(caption))
+		}
+		if caption, ok := part.(docSubCaption); ok {
+			addTarget(string(caption))
+		}
+		if caption, ok := part.(docSubSubCaption); ok {
+			addTarget(string(caption))
+		}
+		i++
+	}
+	// replace all tempRefs with actual references
+	for i, part := range p.doc.parts {
+		if ref, ok := part.(tempRef); ok {
+			target := targets[ref.target]
+			if target == 0 {
+				p.err = fmt.Errorf(
+					"unknown link target '%s' in line %d",
+					ref.target,
+					ref.declLine,
 				)
 				return
 			}
-
-			switch commands[i].id {
-			case cmdTitle:
-				p.doc.title = strings.TrimSpace(params[0])
-				p.eatWhiteSpace()
-			case cmdImage:
-				p.emit(docImage{name: strings.TrimSpace(params[0])})
-			case cmdMagnify2:
-				p.emit(largerDocText{text: params[0], scale: 2})
-			case cmdMagnify3:
-				p.emit(largerDocText{text: params[0], scale: 3})
-			case cmdMagnify4:
-				p.emit(largerDocText{text: params[0], scale: 4})
-			case cmdSet:
-				p.vars[strings.TrimSpace(params[0])] = params[1]
-				p.eatWhiteSpace()
-			case cmdVar:
-				name := strings.TrimSpace(params[0])
-				if value, ok := p.vars[name]; ok {
-					p.text += value
-				} else {
-					p.errorf("undefined variable '%s': ", name)
-					return
-				}
-			case cmdLink:
-				id := strings.TrimSpace(params[1])
-				p.emit(docLink{
-					text: params[0],
-					id:   id,
-				})
-				p.links[id] = true
-			case cmdLinkTarget:
-				id := strings.TrimSpace(params[0])
-				p.emit(docLinkTarget{id: id})
-				p.linkTargets[id] = true
-			case cmdBold:
-				p.emit(boldDocText(params[0]))
-			case cmdItalic:
-				p.emit(italicDocText(params[0]))
-			default:
-				p.errorf("unhandled command: '%s'", commands[i].text)
+			text := ref.text
+			if text == "" {
+				text = ref.target
 			}
-			return
+			p.doc.parts[i] = docLink{
+				id:   targets[ref.target],
+				text: text,
+			}
+			referenced[ref.text] = true
 		}
 	}
-	// If we came here, no known command was found. For a helpful error message,
-	// name the command in the error message. NOTE that basically anything can
-	// come after the \ so try to find the first non-character to mark the
-	// supposed command's end
-	cmd := ""
-	rest := p.code[p.cur:]
-	i := 0
-	for i < len(rest) {
-		r, size := utf8.DecodeRune(rest)
-		rest = rest[size:]
-		if !unicode.IsLetter(r) {
-			break
-		}
-		if len(cmd) >= 30 {
-			// do not show the whole rest of the code if no non-character is
-			// found, clamp here
-			cmd += "..."
-			break
-		}
-		cmd += string(r)
-	}
-	if cmd == "" {
-		p.errorf(`missing command after \ character, type \\ for a literal \`)
-	} else {
-		p.errorf("unknown command: '%s'", cmd)
-	}
 }
-
-const eof rune = 0
-
-func (p *parser) eatWhiteSpace() {
-	for unicode.IsSpace(p.peek()) {
-		p.next()
-	}
-}
-
-func (p *parser) peek() rune {
-	if p.cur >= len(p.code) {
-		return eof
-	}
-	r, _ := utf8.DecodeRune(p.code[p.cur:])
-	return r
-}
-
-func (p *parser) next() rune {
-	if p.cur >= len(p.code) {
-		return eof
-	}
-	r, size := utf8.DecodeRune(p.code[p.cur:])
-	p.cur += size
-	p.col++
-	if r == '\n' {
-		p.col = 0
-		p.line++
-	}
-	return r
-}
-
-func (p *parser) error(msg string) {
-	p.err = fmt.Errorf("parse error in line %d col %d: %s", p.line+1, p.col+1, msg)
-}
-
-func (p *parser) errorf(format string, a ...interface{}) {
-	p.error(fmt.Sprintf(format, a...))
-}
-
-type commandID int
-
-const (
-	cmdInvalid commandID = iota
-	cmdTitle
-	cmdMagnify2
-	cmdMagnify3
-	cmdMagnify4
-	cmdImage
-	cmdSet
-	cmdVar
-	cmdLink
-	cmdLinkTarget
-	cmdBold
-	cmdItalic
-)
-
-type command struct {
-	id         commandID
-	text       []byte
-	paramCount int
-}
-
-func cmd(id commandID, text string, params int) command {
-	return command{
-		id:         id,
-		text:       []byte(text),
-		paramCount: params,
-	}
-}
-
-var commands = []command{
-	cmd(cmdTitle, "title", 1),
-	cmd(cmdMagnify2, "2x", 1),
-	cmd(cmdMagnify3, "3x", 1),
-	cmd(cmdMagnify4, "4x", 1),
-	cmd(cmdImage, "image", 1),
-	cmd(cmdSet, "set", 2),
-	cmd(cmdVar, "var", 1),
-	cmd(cmdLink, "link", 2),
-	cmd(cmdLinkTarget, "target", 1),
-	cmd(cmdBold, "b", 1),
-	cmd(cmdItalic, "i", 1),
-}
-
-func init() {
-	// make sure the longest text item comes first, this way matching commands
-	// during parsing will match the right one even if (e.g. "image" and
-	// "image_crop")
-	sort.Sort(longestTextFirst(commands))
-}
-
-type longestTextFirst []command
-
-func (c longestTextFirst) Len() int           { return len(c) }
-func (c longestTextFirst) Less(i, j int) bool { return len(c[i].text) > len(c[j].text) }
-func (c longestTextFirst) Swap(i, j int)      { c[i], c[j] = c[j], c[i] }

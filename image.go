@@ -1,12 +1,11 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"image"
+	"io/ioutil"
 	"os"
 	"path/filepath"
-	"strings"
 
 	_ "golang.org/x/image/bmp"
 	_ "image/gif"
@@ -16,29 +15,40 @@ import (
 
 var imageCache = make(map[string]image.Image)
 
-func findImage(name string) (img image.Image, finalErr error) {
+// findImage walks the "." directory in a breadth-first search to find a file
+// with the given name. It loads the image from the file and returns it.
+func findImage(name string) (image.Image, error) {
 	if img, ok := imageCache[name]; ok {
 		return img, nil
 	}
 
-	filepath.Walk(".", func(path string, info os.FileInfo, err error) error {
-		if err == nil && !info.IsDir() {
-			ext := filepath.Ext(info.Name())
-			if name == strings.TrimSuffix(info.Name(), ext) {
-				img, finalErr = loadImage(path)
-				if finalErr == nil {
-					imageCache[name] = img
-					return errors.New("done")
+	var img image.Image
+	var finalErr error
+
+	dirQueue := []string{"."}
+	for len(dirQueue) > 0 {
+		dir := dirQueue[0]
+		dirQueue = dirQueue[1:]
+		files, err := ioutil.ReadDir(dir)
+		if err == nil {
+			for _, file := range files {
+				if file.IsDir() {
+					dirQueue = append(dirQueue, filepath.Join(dir, file.Name()))
+				} else if file.Name() == name {
+					img, finalErr = loadImage(filepath.Join(dir, file.Name()))
+					if finalErr == nil {
+						imageCache[name] = img
+						return img, nil
+					}
 				}
 			}
-
 		}
-		return nil
-	})
+	}
+
 	if img == nil && finalErr == nil {
 		finalErr = fmt.Errorf("no image with the name '%s' found", name)
 	}
-	return
+	return img, finalErr
 }
 
 func loadImage(path string) (image.Image, error) {

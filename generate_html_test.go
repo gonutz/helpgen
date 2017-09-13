@@ -15,6 +15,10 @@ func TestTabsAreReplacedByFourSpaces(t *testing.T) {
 	checkHTMLbody(t, "a&nbsp;&nbsp;&nbsp;&nbsp;tab", "", docText("a\ttab"))
 }
 
+func TestTrademarkRIsSuperscripted(t *testing.T) {
+	checkHTMLbody(t, "<sup>®</sup>", "", docText("®"))
+}
+
 func checkHTMLbody(t *testing.T, want string, docTitle string, docParts ...docPart) {
 	doc := document{title: docTitle, parts: docParts}
 	output, err := genHTML(doc)

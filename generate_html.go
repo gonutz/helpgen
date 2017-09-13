@@ -91,6 +91,7 @@ func escapeHTML(s string) string {
 	s = html.EscapeString(s)
 	s = strings.Replace(s, "  ", "&nbsp;&nbsp;", -1)
 	s = strings.Replace(s, "&nbsp; ", "&nbsp;&nbsp;", -1)
+	s = strings.Replace(s, "®", "<sup>®</sup>", -1)
 	return s
 }
 

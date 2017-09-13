@@ -27,6 +27,7 @@ func main() {
 			if args[i] == flag {
 				generator = gen
 				delArg(i)
+				i--
 			}
 		}
 		i++

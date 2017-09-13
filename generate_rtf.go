@@ -110,7 +110,6 @@ func genRTF(doc document) ([]byte, error) {
 
 func escape(s string) string {
 	s = strings.Replace(s, "\n", `\line `, -1)
-	s = strings.Replace(s, "®", `{\super ®}`, -1)
 	return s
 }
 

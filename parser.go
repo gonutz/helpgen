@@ -212,7 +212,7 @@ func (p *parser) parseLine(line []byte, lineNumber int) {
 		switch line[i] {
 		case '*', '/':
 			delim := line[i]
-			if i == 0 || isSpace(line[i-1]) {
+			if i+1 < len(line) && !isSpace(line[i+1]) {
 				end := findStyleEnd(line[i+1:], delim)
 				if end != -1 {
 					end += i + 1 // because index was for line[i+1:]

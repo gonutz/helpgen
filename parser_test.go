@@ -83,6 +83,7 @@ func TestNonBoldWithStyleCharacter(t *testing.T) {
 
 func TestItalicText(t *testing.T) {
 	checkParse(t, "/italic/", "", italic("italic"))
+	checkParse(t, "/File/->/Exit/", "", italic("File"), docText("->"), italic("Exit"))
 }
 
 func TestBoldItalicText(t *testing.T) {

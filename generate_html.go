@@ -28,7 +28,7 @@ func genHTML(doc document) ([]byte, error) {
  }
 </style>`)
 	if doc.title != "" {
-		write(`<title>` + html.EscapeString(doc.title) + `</title>`)
+		write(`<title>` + escapeHTML(doc.title) + `</title>`)
 	}
 	write(`</head><body>`)
 	for _, part := range doc.parts {
@@ -36,7 +36,7 @@ func genHTML(doc document) ([]byte, error) {
 		case docText:
 			lines := strings.Split(string(p), "\n")
 			for i := range lines {
-				lines[i] = html.EscapeString(lines[i])
+				lines[i] = escapeHTML(lines[i])
 			}
 			write(strings.Join(lines, "<br>"))
 		case docImage:
@@ -58,7 +58,7 @@ func genHTML(doc document) ([]byte, error) {
 		case docSubSubCaption:
 			write("<h4>" + string(p) + "</h4>")
 		case docLink:
-			write(fmt.Sprintf(`<a href="#%d">%s</a>`, p.id, html.EscapeString(p.text)))
+			write(fmt.Sprintf(`<a href="#%d">%s</a>`, p.id, escapeHTML(p.text)))
 		case docLinkTarget:
 			write(fmt.Sprintf(`<a id="%d"/>`, int(p)))
 		case externalDocLink:
@@ -70,7 +70,7 @@ func genHTML(doc document) ([]byte, error) {
 			if p.italic {
 				write("<i>")
 			}
-			write(html.EscapeString(p.text))
+			write(escapeHTML(p.text))
 			if p.italic {
 				write("</i>")
 			}
@@ -84,6 +84,14 @@ func genHTML(doc document) ([]byte, error) {
 	write(`</body></html>`)
 
 	return buf.Bytes(), nil
+}
+
+func escapeHTML(s string) string {
+	s = strings.Replace(s, "\t", "    ", -1)
+	s = html.EscapeString(s)
+	s = strings.Replace(s, "  ", "&nbsp;&nbsp;", -1)
+	s = strings.Replace(s, "&nbsp; ", "&nbsp;&nbsp;", -1)
+	return s
 }
 
 func imageTag(img image.Image) (string, error) {

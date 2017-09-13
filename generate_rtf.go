@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"image/png"
 	"strings"
+	"unicode/utf16"
 )
 
 func genRTF(doc document) ([]byte, error) {
@@ -13,14 +14,23 @@ func genRTF(doc document) ([]byte, error) {
 
 	var buf bytes.Buffer
 	write := func(s string) {
-		buf.WriteString(s)
+		for _, r := range s {
+			if r < 128 {
+				buf.WriteByte(byte(r))
+			} else {
+				u := utf16.Encode([]rune{r})
+				if len(u) > 0 {
+					buf.WriteString(fmt.Sprintf(`\u%d?`, int(u[0])))
+				}
+			}
+		}
 	}
-	writeCaption := func(s string, size string) {
+	writeCaption := func(cap string, size string) {
 		if size != "" {
 			size = `\fs` + size
 		}
 		write(`\b` + size + ` `)
-		write(strings.Replace(s, "\n", `\line `, -1))
+		write(escape(cap))
 		write(`\b0\fs22\line `)
 	}
 
@@ -28,7 +38,7 @@ func genRTF(doc document) ([]byte, error) {
 	for _, part := range doc.parts {
 		switch p := part.(type) {
 		case docText:
-			write(strings.Replace(string(p), "\n", `\line `, -1))
+			write(escape(string(p)))
 		case docImage:
 			img, err := findImage(p.name)
 			if err != nil {
@@ -70,11 +80,11 @@ func genRTF(doc document) ([]byte, error) {
 		case docSubSubCaption:
 			writeCaption(string(p), "")
 		case docLink:
-			write(strings.Replace(string(p.text), "\n", `\line `, -1))
+			write(escape(string(p.text)))
 		case docLinkTarget:
 			// NOTE there are no links in RTF
 		case externalDocLink:
-			write(fmt.Sprintf(`{\field{\*\fldinst HYPERLINK "%s"}{\fldrslt %s}}`, p.url, p.text))
+			write(fmt.Sprintf(`{\field{\*\fldinst HYPERLINK "%s"}{\fldrslt %s}}`, p.url, escape(p.text)))
 		case stylizedDocText:
 			if p.bold {
 				write(`\b `)
@@ -82,7 +92,7 @@ func genRTF(doc document) ([]byte, error) {
 			if p.italic {
 				write(`\i `)
 			}
-			write(strings.Replace(p.text, "\n", `\line `, -1))
+			write(escape(p.text))
 			if p.italic {
 				write(`\i0 `)
 			}
@@ -96,6 +106,12 @@ func genRTF(doc document) ([]byte, error) {
 	write(`}`)
 
 	return buf.Bytes(), nil
+}
+
+func escape(s string) string {
+	s = strings.Replace(s, "\n", `\line `, -1)
+	s = strings.Replace(s, "®", `{\super ®}`, -1)
+	return s
 }
 
 func toTwips(x int) int {

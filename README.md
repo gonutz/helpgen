@@ -121,6 +121,23 @@ If you want the link text to be different from the actual caption, you can inclu
 Here is a link with an [alternative text[1.1 Some Caption]].
 ```
 
+You can also have links to websites and email links. To insert a link to a website, put the link in brackets and start it with either `www.`, `http://` or `https://` like so
+
+```
+[www.google.com]
+[http://www.google.com]
+[https://www.google.com]
+[alternate link text[www.google.com]]
+```
+
+To add an email address as a `mailto:` link, put it in brackets, it will be recognized automatically as a mail address. You can also prefix it with `mailto:` like so
+
+```
+[info@example.com]
+[mailto:info@example.com]
+[my mail link[info@example.com]]
+```
+
 ## Special Characters
 
 These characters are used to start special syntax elements: `[`, `*`, `/`, `=`, `-`, `.`

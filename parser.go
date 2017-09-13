@@ -435,8 +435,8 @@ func (p *parser) resolveRefs() {
 			if target == 0 {
 				// in this case, check if we have a URL
 				if strings.HasPrefix(ref.target, "www.") ||
-					strings.HasPrefix(ref.target, "http://www.") ||
-					strings.HasPrefix(ref.target, "https://www.") {
+					strings.HasPrefix(ref.target, "http://") ||
+					strings.HasPrefix(ref.target, "https://") {
 					text := ref.text
 					if text == "" {
 						text = ref.target

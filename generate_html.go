@@ -61,6 +61,8 @@ func genHTML(doc document) ([]byte, error) {
 			write(fmt.Sprintf(`<a href="#%d">%s</a>`, p.id, html.EscapeString(p.text)))
 		case docLinkTarget:
 			write(fmt.Sprintf(`<a id="%d"/>`, int(p)))
+		case externalDocLink:
+			write(fmt.Sprintf(`<a href="%s">%s</a>`, p.url, p.text))
 		case stylizedDocText:
 			if p.bold {
 				write("<b>")

@@ -217,6 +217,21 @@ func TestRefsToCaptionsCanHaveDifferentText(t *testing.T) {
 	)
 }
 
+func TestReferencesToWebLinksArePrefixedWith_http_ifNecessary(t *testing.T) {
+	checkParse(t, "[www.google.com]", "", externalDocLink{
+		url:  "http://www.google.com",
+		text: "www.google.com",
+	})
+	checkParse(t, "[http://www.google.com]", "", externalDocLink{
+		url:  "http://www.google.com",
+		text: "http://www.google.com",
+	})
+	checkParse(t, "[https://www.google.com]", "", externalDocLink{
+		url:  "https://www.google.com",
+		text: "https://www.google.com",
+	})
+}
+
 func checkParse(t *testing.T, code string, title string, want ...docPart) {
 	doc, err := parse([]byte(code))
 	if err != nil {

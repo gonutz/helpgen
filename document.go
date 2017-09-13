@@ -31,6 +31,11 @@ type (
 	}
 
 	docLinkTarget int
+
+	externalDocLink struct {
+		url  string
+		text string
+	}
 )
 
 func (docText) isDocPart()          {}
@@ -42,3 +47,4 @@ func (docTitle) isDocPart()         {}
 func (docCaption) isDocPart()       {}
 func (docSubCaption) isDocPart()    {}
 func (docSubSubCaption) isDocPart() {}
+func (externalDocLink) isDocPart()  {}

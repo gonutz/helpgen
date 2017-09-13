@@ -432,6 +432,25 @@ func (p *parser) resolveRefs() {
 		if ref, ok := part.(tempRef); ok {
 			target := targets[ref.target]
 			if target == 0 {
+				// in this case, check if we have a URL
+				if strings.HasPrefix(ref.target, "www.") ||
+					strings.HasPrefix(ref.target, "http://www.") ||
+					strings.HasPrefix(ref.target, "https://www.") {
+					text := ref.text
+					if text == "" {
+						text = ref.target
+					}
+					url := ref.target
+					if strings.HasPrefix(url, "www.") {
+						url = "http://" + url
+					}
+					p.doc.parts[i] = externalDocLink{
+						url:  url,
+						text: text,
+					}
+					continue
+				}
+				// no URL either -> error
 				p.err = fmt.Errorf(
 					"unknown link target '%s' in line %d",
 					ref.target,

@@ -73,6 +73,8 @@ func genRTF(doc document) ([]byte, error) {
 			write(strings.Replace(string(p.text), "\n", `\line `, -1))
 		case docLinkTarget:
 			// NOTE there are no links in RTF
+		case externalDocLink:
+			write(fmt.Sprintf(`{\field{\*\fldinst HYPERLINK "%s"}{\fldrslt %s}}`, p.url, p.text))
 		case stylizedDocText:
 			if p.bold {
 				write(`\b `)

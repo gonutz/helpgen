@@ -16,6 +16,9 @@ func genHTML(doc document) ([]byte, error) {
 	write := func(s string) {
 		buf.WriteString(s)
 	}
+	writeCaption := func(cap, size string) {
+		write("<h" + size + ">" + escapeHTML(cap) + "</h" + size + ">")
+	}
 
 	write(`<!DOCTYPE html><meta charset="UTF-8"><html><head>
 <style>
@@ -28,7 +31,7 @@ func genHTML(doc document) ([]byte, error) {
  }
 </style>`)
 	if doc.title != "" {
-		write(`<title>` + escapeHTML(doc.title) + `</title>`)
+		write(`<title>` + doc.title + `</title>`)
 	}
 	write(`</head><body>`)
 	for _, part := range doc.parts {
@@ -50,19 +53,19 @@ func genHTML(doc document) ([]byte, error) {
 			}
 			write(tag)
 		case docTitle:
-			write("<h1>" + string(p) + "</h1>")
+			writeCaption(string(p), "1")
 		case docCaption:
-			write("<h2>" + string(p) + "</h2>")
+			writeCaption(string(p), "2")
 		case docSubCaption:
-			write("<h3>" + string(p) + "</h3>")
+			writeCaption(string(p), "3")
 		case docSubSubCaption:
-			write("<h4>" + string(p) + "</h4>")
+			writeCaption(string(p), "4")
 		case docLink:
 			write(fmt.Sprintf(`<a href="#%d">%s</a>`, p.id, escapeHTML(p.text)))
 		case docLinkTarget:
 			write(fmt.Sprintf(`<a id="%d"/>`, int(p)))
 		case externalDocLink:
-			write(fmt.Sprintf(`<a href="%s">%s</a>`, p.url, p.text))
+			write(fmt.Sprintf(`<a href="%s">%s</a>`, p.url, escapeHTML(p.text)))
 		case stylizedDocText:
 			if p.bold {
 				write("<b>")

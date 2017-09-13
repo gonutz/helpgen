@@ -28,6 +28,7 @@ func main() {
 				generator = gen
 				delArg(i)
 				i--
+				break
 			}
 		}
 		i++

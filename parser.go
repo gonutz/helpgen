@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"net/mail"
 	"strings"
 	"unicode"
 )
@@ -450,7 +451,21 @@ func (p *parser) resolveRefs() {
 					}
 					continue
 				}
-				// no URL either -> error
+				// see if this is a mail address
+				possibleAddr := strings.TrimPrefix(ref.target, "mailto:")
+				if addr, err := mail.ParseAddress(possibleAddr); err == nil {
+					text := ref.text
+					if text == "" {
+						text = addr.Address
+					}
+					p.doc.parts[i] = externalDocLink{
+						url:  "mailto:" + addr.Address,
+						text: text,
+					}
+					continue
+				}
+				// neither a known internal link target nor a valid external
+				// link -> error
 				p.err = fmt.Errorf(
 					"unknown link target '%s' in line %d",
 					ref.target,

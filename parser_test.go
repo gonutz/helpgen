@@ -231,6 +231,25 @@ func TestReferencesToWebLinksArePrefixedWith_http_ifNecessary(t *testing.T) {
 		url:  "https://www.google.com",
 		text: "https://www.google.com",
 	})
+	checkParse(t, "[some link[www.google.com]]", "", externalDocLink{
+		url:  "http://www.google.com",
+		text: "some link",
+	})
+}
+
+func TestMailAddressRefsAreLinksWith_mailto_prefixedIfNecessary(t *testing.T) {
+	checkParse(t, "[blah@mail.com]", "", externalDocLink{
+		url:  "mailto:blah@mail.com",
+		text: "blah@mail.com",
+	})
+	checkParse(t, "[mailto:blah@mail.com]", "", externalDocLink{
+		url:  "mailto:blah@mail.com",
+		text: "blah@mail.com",
+	})
+	checkParse(t, "[My Mail[blah@mail.com]]", "", externalDocLink{
+		url:  "mailto:blah@mail.com",
+		text: "My Mail",
+	})
 }
 
 func checkParse(t *testing.T, code string, title string, want ...docPart) {

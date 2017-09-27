@@ -168,17 +168,22 @@ func simplifyDoc(doc *document) {
 }
 
 func (p *parser) parseLines(lines []codeLine) {
+	lineEmpty := func(line codeLine) bool {
+		return len(bytes.TrimSpace(line.text)) == 0
+	}
+
 	// there can only be one title, having multiple titles is an error
 	titleLine := -1
 	for i, line := range lines {
 		if line.kind == textLine {
-			empty := len(bytes.TrimSpace(line.text)) == 0
+			empty := lineEmpty(line)
 			precededByEqualsLine := i > 0 && lines[i-1].kind == equalsLine
 			followedByEqualsLine := i+1 < len(lines) && lines[i+1].kind == equalsLine
 			followedByMinusLine := i+1 < len(lines) && lines[i+1].kind == minusLine
 			followedByDottedLine := i+1 < len(lines) && lines[i+1].kind == dottedLine
+			potentialTitle := !empty && precededByEqualsLine && followedByEqualsLine
 
-			if !empty && precededByEqualsLine && followedByEqualsLine {
+			if potentialTitle && (i == 1 || lines[i-2].kind != textLine || lineEmpty(lines[i-2])) {
 				// this is the document title, there can only be one
 				if titleLine != -1 {
 					p.err = fmt.Errorf("title redefined in line %d, first definition in line %d, there can only be one title", i+1, titleLine+1)

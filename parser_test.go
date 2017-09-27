@@ -14,15 +14,30 @@ func TestDocumentTitle(t *testing.T) {
 	)
 }
 
+func TestTitleFollowedByCaption(t *testing.T) {
+	checkParse(
+		t,
+		`===
+Title
+===
+Caption
+=======`,
+		"Title",
+		docTitle("Title"),
+		docCaption("Caption"),
+	)
+}
+
 func TestThereCanOnlyBeOneTitle(t *testing.T) {
 	checkParseError(
 		t,
 		`===
 Title
 ===
+===
 2nd
 ===`,
-		"title redefined in line 4, first definition in line 2, there can only be one title",
+		"title redefined in line 5, first definition in line 2, there can only be one title",
 	)
 }
 
@@ -175,6 +190,24 @@ Subsubchapter
 		docCaption("Chapter"),
 		docSubCaption("Subchapter"),
 		docSubSubCaption("Subsubchapter"),
+	)
+}
+
+func TestTwoConsecutiveCaptionsAreNotATitle(t *testing.T) {
+	checkParse(
+		t,
+		`
+Caption 1
+=========
+Caption 2
+=========
+Caption 3
+=========`,
+		"",
+		docText("\n"),
+		docCaption("Caption 1"),
+		docCaption("Caption 2"),
+		docCaption("Caption 3"),
 	)
 }
 

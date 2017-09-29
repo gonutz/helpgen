@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 
 	_ "golang.org/x/image/bmp"
 	_ "image/gif"
@@ -16,8 +17,11 @@ import (
 var imageCache = make(map[string]image.Image)
 
 // findImage walks the "." directory in a breadth-first search to find a file
-// with the given name. It loads the image from the file and returns it.
+// with the given name, case-insensitive. It loads the image from the file and
+// returns it.
 func findImage(name string) (image.Image, error) {
+	name = strings.ToLower(name)
+
 	if img, ok := imageCache[name]; ok {
 		return img, nil
 	}
@@ -34,7 +38,7 @@ func findImage(name string) (image.Image, error) {
 			for _, file := range files {
 				if file.IsDir() {
 					dirQueue = append(dirQueue, filepath.Join(dir, file.Name()))
-				} else if file.Name() == name {
+				} else if strings.ToLower(file.Name()) == name {
 					img, finalErr = loadImage(filepath.Join(dir, file.Name()))
 					if finalErr == nil {
 						imageCache[name] = img

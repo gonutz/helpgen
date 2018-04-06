@@ -41,7 +41,7 @@ Title
 	)
 }
 
-func TestTitlesAreNeverStylzed(t *testing.T) {
+func TestTitlesAreNeverStylized(t *testing.T) {
 	const title = `*no bold* /nor italic/ [nor references]`
 	checkParse(
 		t,

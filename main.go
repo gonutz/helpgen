@@ -4,7 +4,15 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"strings"
 )
+
+func usage() {
+	fmt.Println(`usage: helpgen [-html/-rtf] < input.help > output.html
+  If no output format is specified, HTML is used.
+  Stdin is used to read the input script.
+  Stdout is used to write the generated output.`)
+}
 
 var generators = map[string]func(document) ([]byte, error){
 	"-html": genHTML,
@@ -23,6 +31,10 @@ func main() {
 	}
 	i := 0
 	for i < len(args) {
+		if isHelpOpt(args[i]) {
+			usage()
+			return
+		}
 		for flag, gen := range generators {
 			if args[i] == flag {
 				generator = gen
@@ -69,4 +81,12 @@ func main() {
 func fail(exitCode int, format string, a ...interface{}) {
 	fmt.Fprintf(os.Stderr, format, a...)
 	os.Exit(exitCode)
+}
+
+func isHelpOpt(s string) bool {
+	for s != "" && s[0] == '-' {
+		s = s[1:]
+	}
+	s = strings.ToLower(s)
+	return s == "/?" || s == "h" || s == "help"
 }
